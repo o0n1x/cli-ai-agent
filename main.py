@@ -10,7 +10,7 @@ from functions.get_file_content import get_file_content
 from functions.write_file import write_file
 from functions.run_python_file import run_python_file
 
-from config import WORKING_DIR
+from config import *
 import sys
 import argparse
 
@@ -96,37 +96,42 @@ def main():
 
 
     #AI Agent loop
-    
-    #call model
-    response = client.models.generate_content(
-        model ="gemini-2.0-flash-001",
-        contents=messages,
-        config=types.GenerateContentConfig(tools=[available_functions],system_instruction=system_prompt))
+    for i in range(MAX_AGENT_ITERATIONS):
+        #call model
 
-    #save reponse to the message list
-    for candidate in response.candidates:
-        messages.append(candidate.content)
+        try:
+            response = client.models.generate_content(
+                model ="gemini-2.0-flash-001",
+                contents=messages,
+                config=types.GenerateContentConfig(tools=[available_functions],system_instruction=system_prompt))
+            #save reponse to the message list
+            for candidate in response.candidates:
+                messages.append(candidate.content)
+        except Exception as e:
+            print(f"Error: (at iteration {i}): {e}")
+            break
+            
 
-
-    #output
-    if args.verbose:
-        print(f"User prompt: {prompt}")
-        print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
-        print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
-    
-    if response.function_calls:
-        content = call_function(response.function_calls[0],args.verbose)
-        if content.parts[0].function_response.response:
-            if args.verbose:
-                print(f"-> {content.parts[0].function_response.response}")
+        #output
+        if args.verbose:
+            print(f"User prompt: {prompt}")
+            print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
+            print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
+        
+        if response.function_calls:
+            content = call_function(response.function_calls[0],args.verbose)
+            if content.parts[0].function_response.response:
+                if args.verbose:
+                    print(f"-> {content.parts[0].function_response.response}")
+                #append function result to the messages
+                messages.append(types.Content(role="user", parts=[types.Part(text=content.parts[0].function_response.response["result"])]))
+            else:
+                raise Exception(f"error in calling function {response.function_calls[0].name}")
+            
 
         else:
-            raise Exception(f"error in calling function {response.function_calls[0].name}")
-        
-
-    else:
-        print(response.text)
-
+            print(f"Final Response : \n {response.text} ")
+            break
 
 
 
